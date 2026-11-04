@@ -1,15 +1,19 @@
-# gripe
+# complain
 
-Gripe about your agent setup the moment it fails, without derailing the session. Fix the root cause
-later, in one pass. Works in Claude Code, Codex, Cursor and Grok Build, with one shared gripe folder.
+Complain about your agent setup the moment it fails, without derailing the session. Fix the root cause
+later, in one pass. Works in Claude Code, Codex, Cursor and Grok Build, with one shared complaints
+folder.
 
-- **`/gripe <what went wrong>`** (`$gripe` in Codex): a hook writes the gripe to a local folder, with
-  what the session was doing at that moment, and blocks the prompt. The running session never sees it
-  and carries on.
-- **`/gripe`** (bare): the skill works the queue. It reads open gripes and your past corrections,
-  finds the root cause in your setup, and proposes the most deterministic fix: a hook beats a script,
-  a script beats a skill, a skill beats a line in an instruction file. Nothing lands until you approve
-  it. Each gripe is then marked `fixed` or `rejected`.
+Prefer another word than `/complain`? Clone this repo and run `node setup.mjs <word>` (see
+[Use your own word](#use-your-own-word)).
+
+- **`/complain <what went wrong>`** (`$complain` in Codex): a hook writes the complaint to a local
+  folder, with what the session was doing at that moment, and blocks the prompt. The running session
+  never sees it and carries on.
+- **`/complain`** (bare): the skill works the queue. It reads open complaints and your past
+  corrections, finds the root cause in your setup, and proposes the most deterministic fix: a hook
+  beats a script, a script beats a skill, a skill beats a line in an instruction file. Nothing lands
+  until you approve it. Each complaint is then marked `fixed` or `rejected`.
 
 Every tool needs `node` on your `PATH`.
 
@@ -18,49 +22,75 @@ Every tool needs `node` on your `PATH`.
 ### Claude Code
 
 ```sh
-claude plugin marketplace add juliussneezer04/gripe
-claude plugin install gripe@gripe
+claude plugin marketplace add juliussneezer04/complain
+claude plugin install complain@complain
 ```
 
-Start a new session (or run `/reload-plugins`). If `/gripe` clashes with another command, type
-`/gripe:gripe`; the hook catches both.
+Start a new session (or run `/reload-plugins`). If `/complain` clashes with another command, type
+`/complain:complain`; the hook catches both. For your own word, install from a renamed clone instead
+([Use your own word](#use-your-own-word)).
 
 ### Codex
 
 ```sh
-codex plugin marketplace add juliussneezer04/gripe
+codex plugin marketplace add juliussneezer04/complain
 ```
 
-Then install `gripe` from `/plugins`, start a new session, and trust its hook in `/hooks` (Codex keeps
-plugin hooks off until you review them). Type `$gripe <text>`.
+Then install `complain` from `/plugins`, start a new session, and trust its hook in `/hooks` (Codex
+keeps plugin hooks off until you review them). Type `$complain <text>`. For your own word, add a renamed
+clone as the marketplace instead.
 
 ### Cursor
 
 ```sh
-cursor-agent plugin marketplace add https://github.com/juliussneezer04/gripe
+cursor-agent plugin marketplace add https://github.com/juliussneezer04/complain
 ```
 
-Or in the editor: Customize, then Import from Repo with the same URL. To try a local copy, clone it
-to `~/.cursor/plugins/local/gripe` and reload the window.
+Or in the editor: Customize, then Import from Repo with the same URL. To try a local copy, or a
+renamed one, put it at `~/.cursor/plugins/local/complain` (or your word) and reload the window.
 
 ### Grok Build
 
 Grok Build reads Claude Code plugins, so a Claude Code install also works there. Or add this repo in
-`/marketplace` and install `gripe` from `/plugins`.
+`/marketplace` and install `complain` from `/plugins`. A renamed Claude Code install carries over too.
 
-Grok Build's prompt hooks cannot block a prompt. There, `/gripe <text>` reaches the session, and the
-skill writes the gripe file itself, then goes back to work.
+Grok Build's prompt hooks cannot block a prompt. There, `/complain <text>` reaches the session, and the
+skill writes the complaint file itself, then goes back to work.
 
-## Where gripes are stored
+## Use your own word
 
-`~/.local/state/gripe/`, one Markdown file per gripe, shared by every tool. Set `GRIPE_DIR` to use
-another folder; a leading `~/` is expanded, so it works from a settings `env` block:
-
-```json
-{ "env": { "GRIPE_DIR": "~/notes/gripes" } }
+```sh
+git clone https://github.com/juliussneezer04/complain && cd complain
+node setup.mjs <word> --dry-run   # list what would change
+node setup.mjs <word>
+claude plugin marketplace add "$PWD" && claude plugin install <word>@<word>
 ```
 
-The hook and the skill both read `GRIPE_DIR`. Nothing is sent anywhere.
+The script renames the command, the skill, the plugin, the env var (`<WORD>_DIR`) and the default
+folder (`~/.local/state/<word>/`) in your clone, for all four tools. The word must be lowercase
+kebab-case, not a built-in command, and not already used in the repo's text. Running it again with the
+same word changes nothing.
+
+Why a clone: a skill's command comes from its name, so a config file read by the hook could not rename
+the skill. The cost is that your clone does not update from GitHub; to update, take a fresh clone and
+run the script again.
+
+At the end it offers to add a short pointer to your agent's instructions file, so later sessions know
+the command and where complaints live. It shows the text and asks before writing; running it again
+replaces the old pointer. It offers `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` when they exist.
+Name any other file (a Cursor rule, a repo's `AGENTS.md`) with `--pointer <file>`, and add `--yes` to
+skip the question. `node setup.mjs` with no word only adds the pointer.
+
+## Where complaints are stored
+
+`~/.local/state/complain/`, one Markdown file per complaint, shared by every tool. Set `COMPLAIN_DIR`
+to use another folder; a leading `~/` is expanded, so it works from a settings `env` block:
+
+```json
+{ "env": { "COMPLAIN_DIR": "~/notes/complaints" } }
+```
+
+The hook and the skill both read `COMPLAIN_DIR`. Nothing is sent anywhere.
 
 ## File format
 
@@ -98,7 +128,7 @@ the agent pushed without asking
 | `id` | The file name without `.md`. |
 | `status` | `open` when written. The pass sets `fixed` or `rejected`. |
 | `tool` | `claude-code`, `codex`, `cursor` or `grok`. |
-| `at` | When the gripe was typed, with the time zone offset. |
+| `at` | When the complaint was typed, with the time zone offset. |
 | `session`, `transcript` | The tool's session or conversation id, and its transcript file if it gave one. |
 | `cwd`, `branch` | Where the session was working. `branch` is empty outside git. |
 | `fix` | Added by the pass when `status: fixed`: the commit or file that fixed it. |
@@ -110,25 +140,28 @@ copies of retired memories in `retired-memories/` inside the folder.
 
 ## Turn it off
 
-Disable or uninstall `gripe` in the tool's plugin list (`claude plugin disable gripe@gripe` in Claude
-Code, `/plugins` in Codex and Grok Build, the Customize panel in Cursor). That turns off the hook and
-the skill together. Your gripe files stay where they are.
+Disable or uninstall `complain` in the tool's plugin list (`claude plugin disable complain@complain`
+in Claude Code, `/plugins` in Codex and Grok Build, the Customize panel in Cursor). That turns off the
+hook and the skill together. Your complaint files stay where they are.
 
 ## Blast radius
 
-- **What it blocks:** only a prompt that starts with `/gripe`, `/gripe:gripe` or `$gripe` followed by
-  text. A bare `/gripe`, `/gripes`, and `/gripe` anywhere but the start pass through. On every other
-  prompt it exits after one regex test, so the cost is starting `node`. In Grok Build it never blocks.
-- **What it writes:** one plain-text file per gripe in the folder above. It reads the tail of the
-  Claude Code session transcript and runs `git branch --show-current` in the session's folder.
-  Nothing else.
+- **What it blocks:** only a prompt that starts with `/complain`, `/complain:complain` or `$complain`
+  followed by text. A bare `/complain`, `/complains`, and `/complain` anywhere but the start pass
+  through. On every other prompt it exits after one regex test, so the cost is starting `node`. In
+  Grok Build it never blocks.
+- **What it writes:** one plain-text file per complaint in the folder above. It reads the tail of the
+  Claude Code session transcript and runs `git branch --show-current` in the session's folder. The
+  first capture's reply carries a one-line tip about renaming; later ones do not.
+- **Setup script:** rewrites files only inside your clone. It writes your instructions file only after
+  you say yes (or pass `--yes`), and only between its own markers.
 - **Secrets:** values that look like keys, tokens, JWTs, private key blocks and `*_KEY=` /
   `*_TOKEN=` assignments become `<secret>` before anything is written. This is pattern-based, so a
-  secret in an unusual shape can still reach the file. Do not paste credentials into a gripe.
+  secret in an unusual shape can still reach the file. Do not paste credentials into a complaint.
 - **When it fails:** if it cannot write the file, it lets the prompt through and prints the error.
-  The skill then sees `/gripe <text>` and records the gripe by hand, so a gripe is never lost
-  silently.
-- **The pass:** bare `/gripe` proposes edits to your hooks, skills, instruction files and settings.
+  The skill then sees `/complain <text>` and records the complaint by hand, so a complaint is never
+  lost silently.
+- **The pass:** bare `/complain` proposes edits to your hooks, skills, instruction files and settings.
   It applies only what you approve, item by item, and never pushes or opens a PR without your yes.
 
 ## Development

@@ -1,23 +1,23 @@
 ---
-name: gripe
-description: "Turn gripes about your agent setup into fixes. `/gripe <what went wrong>` (`$gripe` in Codex) records a gripe without the session seeing it (the plugin's hook does that). Bare `/gripe` runs the pass: read the open gripes and your past corrections, find the root cause in your setup, propose the most deterministic fix (hook > script > skill > text rule), and land only what the user approves. Use when the user types `/gripe` or `$gripe`, or asks to work their gripes or fix their agent setup from them."
+name: complain
+description: "Turn complaints about your agent setup into fixes. `/complain <what went wrong>` (`$complain` in Codex) records a complaint without the session seeing it (the plugin's hook does that). Bare `/complain` runs the pass: read the open complaints and your past corrections, find the root cause in your setup, propose the most deterministic fix (hook > script > skill > text rule), and land only what the user approves. Use when the user types `/complain` or `$complain`, or asks to work their complaints or fix their agent setup from them."
 ---
 
-# gripe
+# complain
 
-Works the same in Claude Code, Codex, Cursor and Grok Build. `/gripe` below means `$gripe` in Codex.
+Works the same in Claude Code, Codex, Cursor and Grok Build. `/complain` below means `$complain` in Codex.
 
 ## 0. Which half you are in
-- **`/gripe <text>`** is a gripe. This plugin's prompt-submit hook records it and blocks the prompt,
-  so a session normally never sees it. **If you are reading this with text after `/gripe`, the hook
+- **`/complain <text>`** is a complaint. This plugin's prompt-submit hook records it and blocks the prompt,
+  so a session normally never sees it. **If you are reading this with text after `/complain`, the hook
   did not catch it:** in Grok Build that is expected, because its prompt hooks cannot block;
-  elsewhere the hook is not running or it failed. Write the gripe file yourself in the format below
+  elsewhere the hook is not running or it failed. Write the complaint file yourself in the format below
   (next free number for today, `tool:` set to the tool you are running in), reply with one line naming
   the file, and go back to your work. Do not run the pass.
-- **Bare `/gripe`** runs the pass below.
+- **Bare `/complain`** runs the pass below.
 
-The gripe folder is `$GRIPE_DIR` when set (a leading `~/` means home), else `~/.local/state/gripe/`.
-Every tool shares it. A gripe file is `<YYYY-MM-DD>-<n>.md`, dated in this machine's time zone:
+The complaint folder is `$COMPLAIN_DIR` when set (a leading `~/` means home), else `~/.local/state/complain/`.
+Every tool shares it. A complaint file is `<YYYY-MM-DD>-<n>.md`, dated in this machine's time zone:
 
 ```
 ---
@@ -38,19 +38,19 @@ branch: "<git branch>"
 ```
 
 ## The pass
-The aim: turn every gripe, and every correction the user keeps repeating, into a durable change to
-their setup, so the agent stops relearning the same thing. A gripe is the user telling you directly
+The aim: turn every complaint, and every correction the user keeps repeating, into a durable change to
+their setup, so the agent stops relearning the same thing. A complaint is the user telling you directly
 that the setup failed; it outranks every inferred signal. Observe -> root cause -> propose -> ratify
 -> land.
 
 ## 1. Observe
-**Gripes first.** Read every `status: open` file in the gripe folder, whatever its `tool:`. The hook
+**Complaints first.** Read every `status: open` file in the complaint folder, whatever its `tool:`. The hook
 fills in the last tool calls and reply only for Claude Code; for other tools, and when the excerpt is
-not enough, open the gripe's transcript near its time if one is named. Group gripes about the same
+not enough, open the complaint's transcript near its time if one is named. Group complaints about the same
 thing: each repeat is evidence and moves the group up.
 
-**Then closed gripes.** Read the `fixed` and `rejected` ones. They are the record of past passes: an
-idea the user rejected does not come back unless a new gripe names it.
+**Then closed complaints.** Read the `fixed` and `rejected` ones. They are the record of past passes: an
+idea the user rejected does not come back unless a new complaint names it.
 
 **Then corrections, in slices.** Where the user's tool keeps memories, read the corrections among
 them touched since the last pass, not the whole store. For example, Claude Code's auto-memory files
@@ -59,13 +59,13 @@ live in `~/.claude/projects/*/memory/*.md`, and those with `metadata.type: feedb
 If the user's setup logs other signals (blocked actions, review findings, lesson files), ask once
 where they are, and read slices of those too. Do not go hunting for them.
 
-One pass is a batch, not the whole backlog: every open gripe, then corrections fill the rest.
-**Done when** every open gripe is read and grouped, and the batch of corrections is chosen.
+One pass is a batch, not the whole backlog: every open complaint, then corrections fill the rest.
+**Done when** every open complaint is read and grouped, and the batch of corrections is chosen.
 
 ## 2. Root cause
-**For a gripe, name the part of the setup that should have prevented it:** a missing or wrong hook,
+**For a complaint, name the part of the setup that should have prevented it:** a missing or wrong hook,
 script, skill, instruction-file line, rule, or settings permission. Read only the setup files that
-exist for the gripe's tool: `CLAUDE.md` and `.claude/` for Claude Code, `AGENTS.md` and `.codex/` for
+exist for the complaint's tool: `CLAUDE.md` and `.claude/` for Claude Code, `AGENTS.md` and `.codex/` for
 Codex, `.cursor/rules/` and `.cursor/` for Cursor, `.grok/` for Grok Build (it also reads Claude Code's
 files). Or none: the setup said the
 right thing and the model slipped. Then ask why the right text did not reach the model or did not win
@@ -73,16 +73,16 @@ right thing and the model slipped. Then ask why the right text did not reach the
 dismissal: it usually means a text rule that should become a hook.
 
 **For a correction**, keep it only if it is recurring, not already encoded in the setup, not already
-caught by a tool, true beyond one task, and statable concretely. A gripe skips the "recurring" test:
+caught by a tool, true beyond one task, and statable concretely. A complaint skips the "recurring" test:
 the user said it once, and that is enough.
 
-- **Check current files before proposing.** A memory or gripe reflects what was true when written. If
+- **Check current files before proposing.** A memory or complaint reflects what was true when written. If
   it names a file, flag or rule, confirm it still exists.
 - **A hook that keeps firing is working**, not failing. It needs no companion rule.
 
 Each correction leaves by ONE exit, and encoding it is the minority outcome:
 - **Retire it (the default).** Delete the memory and let recurrence prove it mattered. Copy it to
-  `retired-memories/` inside the gripe folder first. Never retire a silent or destructive failure
+  `retired-memories/` inside the complaint folder first. Never retire a silent or destructive failure
   mode: retire-to-test only works when a repeat would be noticed. Encode those.
 - **Incorporate it** at its home on the ladder (step 3), then retire the memory.
 - **Keep it as a memory**: a fact looked up on demand, not a standing correction.
@@ -107,9 +107,9 @@ Then pick **where it lives**. The test: would this change be true for someone el
 
 When the home is genuinely unclear, say so and let the user pick. Do not put it in two places.
 
-Produce a **ranked list**: gripes first, then by how often the pattern recurs and how cleanly it
-encodes. Each item carries the gripe ids or evidence, the root cause, the home and exact file, the
-diff you would apply, and the ladder line. **Done when** every open gripe in the batch is either an
+Produce a **ranked list**: complaints first, then by how often the pattern recurs and how cleanly it
+encodes. Each item carries the complaint ids or evidence, the root cause, the home and exact file, the
+diff you would apply, and the ladder line. **Done when** every open complaint in the batch is either an
 item on the list or marked for rejection with a reason.
 
 ## 4. Ratify
@@ -121,8 +121,8 @@ Show the ranked list with its diffs. The user approves per item ("yes to 1 and 3
   it; a hook or settings change needs a new session. Say which. Running sessions keep the old rules.
 - For a shared-library or other-repo item, prepare the branch and the diff, and stop. Push or open a
   PR only on the user's yes.
-- **Close each gripe:** set `status: fixed` and add `fix: <commit or file>`, or `status: rejected` and
-  add `reason: <why>`. Keep every gripe file; the closed ones are the record step 1 reads.
+- **Close each complaint:** set `status: fixed` and add `fix: <commit or file>`, or `status: rejected` and
+  add `reason: <why>`. Keep every complaint file; the closed ones are the record step 1 reads.
 
-**Done when** every gripe in the batch is `fixed` or `rejected`, and the user knows which changes need
+**Done when** every complaint in the batch is `fixed` or `rejected`, and the user knows which changes need
 a new session.

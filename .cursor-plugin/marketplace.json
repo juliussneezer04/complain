@@ -1,11 +1,11 @@
 {
-  "name": "gripe",
+  "name": "complain",
   "owner": {
     "name": "juliussneezer04"
   },
   "plugins": [
     {
-      "name": "gripe",
+      "name": "complain",
       "source": "./"
     }
   ]

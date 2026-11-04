@@ -1,5 +1,5 @@
-// `/gripe <what went wrong>` is caught here: the gripe is written to the queue with what the session was
-// doing, and the prompt never reaches the session. A bare `/gripe` runs the skill's pass over the queue.
+// `/complain <what went wrong>` is caught here: the complaint is written to the queue with what the session
+// was doing, and the prompt never reaches the session. A bare `/complain` runs the skill's pass over the queue.
 import { mkdirSync, writeFileSync, readdirSync, openSync, readSync, fstatSync, closeSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { homedir } from 'node:os'
@@ -11,15 +11,15 @@ const CALLS = 8
 const clip = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n)}...` : t }
 
 // A value set in settings.json `env` is not shell-expanded, so `~/` is expanded here.
-export function gripeDir(env = process.env) {
-  const set = env.GRIPE_DIR
-  if (!set) return join(homedir(), '.local/state/gripe')
+export function queueDir(env = process.env) {
+  const set = env.COMPLAIN_DIR
+  if (!set) return join(homedir(), '.local/state/complain')
   return set.startsWith('~/') ? join(homedir(), set.slice(2)) : set
 }
 
 // Codex mentions skills with `$`, and plugin skills can be typed with their namespace.
-export function gripeText(prompt) {
-  const m = /^\s*[/$]gripe(?::gripe)?(?:\s+([\s\S]*\S))?\s*$/.exec(String(prompt ?? ''))
+export function promptText(prompt) {
+  const m = /^\s*[/$]complain(?::complain)?(?:\s+([\s\S]*\S))?\s*$/.exec(String(prompt ?? ''))
   return m && m[1] ? m[1].trim() : null
 }
 
@@ -84,7 +84,7 @@ function sessionOf(h, tool) {
   }
 }
 
-function gripeFile({ id, at, text, s }) {
+function complaintFile({ id, at, text, s }) {
   const yaml = (v) => JSON.stringify(String(v ?? ''))
   return [
     '---',
@@ -112,27 +112,29 @@ function gripeFile({ id, at, text, s }) {
 }
 
 // Exclusive create, so two sessions never take the same number.
-export function recordGripe(h, { dir = gripeDir(), now = new Date(), tool = toolOf(h) } = {}) {
-  const text = gripeText(h?.prompt)
+export function record(h, { dir = queueDir(), now = new Date(), tool = toolOf(h) } = {}) {
+  const text = promptText(h?.prompt)
   if (!text) return null
   mkdirSync(dir, { recursive: true })
+  const existing = readdirSync(dir)
   const date = localDate(now)
   const s = sessionOf(h, tool)
-  for (let n = readdirSync(dir).filter((f) => f.startsWith(`${date}-`)).length + 1; ; n++) {
+  for (let n = existing.filter((f) => f.startsWith(`${date}-`)).length + 1; ; n++) {
     const id = `${date}-${n}`
     const path = join(dir, `${id}.md`)
-    try { writeFileSync(path, gripeFile({ id, at: localIso(now), text, s }), { flag: 'wx' }); return { id, path } } catch (e) { if (e.code !== 'EEXIST') throw e }
+    try { writeFileSync(path, complaintFile({ id, at: localIso(now), text, s }), { flag: 'wx' }); return { id, path, first: existing.length === 0 } } catch (e) { if (e.code !== 'EEXIST') throw e }
   }
 }
 
-// Grok Build cannot block a prompt, so the session sees the gripe and the skill records it.
+// Grok Build cannot block a prompt, so the session sees the complaint and the skill records it.
 export function captureVerdict(h, { env = process.env, ...opts } = {}) {
   const tool = toolOf(h, env)
   if (tool === 'grok') return null
-  const got = recordGripe(h, { ...opts, tool })
+  const got = record(h, { ...opts, tool })
   if (!got) return null
   const shown = got.path.startsWith(homedir()) ? `~${got.path.slice(homedir().length)}` : got.path
-  const pass = tool === 'codex' ? '$gripe' : '/gripe'
-  const reason = `Gripe ${got.id} recorded: ${shown}. This session did not see it; tell it too if it should change course now. Run a bare ${pass} later to work the queue.`
+  const trigger = tool === 'codex' ? '$complain' : '/complain'
+  const tip = got.first ? ` Tip: to use another word than ${trigger}, clone github.com/juliussneezer04/complain and run \`node setup.mjs <word>\`.` : ''
+  const reason = `Complaint ${got.id} recorded: ${shown}. This session did not see it; tell it too if it should change course now. Run a bare ${trigger} later to work the queue.${tip}`
   return tool === 'cursor' ? { continue: false, user_message: reason } : { decision: 'block', reason }
 }
