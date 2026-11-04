@@ -1,0 +1,15 @@
+{
+  "name": "gripe",
+  "owner": {
+    "name": "juliussneezer04",
+    "url": "https://github.com/juliussneezer04"
+  },
+  "plugins": [
+    {
+      "name": "gripe",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -17,11 +17,17 @@ export function gripeDir(env = process.env) {
   return set.startsWith('~/') ? join(homedir(), set.slice(2)) : set
 }
 
-// The gripe text, or null when the prompt is not `/gripe <text>`. Plugin skills can also be typed with
-// their namespace, so `/gripe:gripe <text>` counts too.
+// Codex mentions skills with `$`, and plugin skills can be typed with their namespace.
 export function gripeText(prompt) {
-  const m = /^\s*\/gripe(?::gripe)?(?:\s+([\s\S]*\S))?\s*$/.exec(String(prompt ?? ''))
+  const m = /^\s*[/$]gripe(?::gripe)?(?:\s+([\s\S]*\S))?\s*$/.exec(String(prompt ?? ''))
   return m && m[1] ? m[1].trim() : null
+}
+
+export function toolOf(h, env = process.env) {
+  if (env.GROK_HOOK_EVENT || h.hookEventName) return 'grok'
+  if (h.hook_event_name === 'beforeSubmitPrompt' || h.cursor_version) return 'cursor'
+  if (h.turn_id) return 'codex'
+  return 'claude-code'
 }
 
 function callSummary({ name, input = {} }) {
@@ -29,7 +35,7 @@ function callSummary({ name, input = {} }) {
   return `${name}: ${clip(arg ?? JSON.stringify(input), 200)}`
 }
 
-// The main thread's last tool calls and last reply, from the transcript's tail.
+// The main thread's last tool calls and last reply, from the tail of a Claude Code transcript.
 export function lastActivity(path) {
   let text = ''
   try {
@@ -46,7 +52,7 @@ export function lastActivity(path) {
   for (const line of text.split('\n')) {
     let rec
     try { rec = JSON.parse(line) } catch { continue }
-    if (rec.type !== 'assistant' || rec.isSidechain) continue
+    if (rec?.type !== 'assistant' || rec.isSidechain) continue
     for (const c of rec.message?.content || []) {
       if (c.type === 'tool_use') calls.push(redact(callSummary(c)))
       else if (c.type === 'text' && c.text.trim()) reply = c.text
@@ -66,53 +72,67 @@ const localIso = (d) => {
   return `${localDate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${off >= 0 ? '+' : '-'}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`
 }
 
-function gripeFile({ id, at, text, h, branch, activity }) {
+function sessionOf(h, tool) {
+  const cwd = h.cwd ?? h.workspace_roots?.[0] ?? ''
+  return {
+    tool,
+    session: h.session_id ?? h.conversation_id,
+    transcript: h.transcript_path,
+    cwd,
+    branch: cwd ? branchOf(cwd) : '',
+    activity: tool === 'claude-code' ? lastActivity(h.transcript_path) : { calls: [], reply: '' },
+  }
+}
+
+function gripeFile({ id, at, text, s }) {
   const yaml = (v) => JSON.stringify(String(v ?? ''))
   return [
     '---',
     `id: ${id}`,
     'status: open',
+    `tool: ${s.tool}`,
     `at: ${at}`,
-    `session: ${yaml(h.session_id)}`,
-    `transcript: ${yaml(h.transcript_path)}`,
-    `cwd: ${yaml(h.cwd)}`,
-    `branch: ${yaml(branch)}`,
+    `session: ${yaml(s.session)}`,
+    `transcript: ${yaml(s.transcript)}`,
+    `cwd: ${yaml(s.cwd)}`,
+    `branch: ${yaml(s.branch)}`,
     '---',
     '',
     redact(text),
     '',
     '## Last tool calls (oldest first)',
     '',
-    ...(activity.calls.length ? activity.calls.map((c) => `- ${c}`) : ['- none found']),
+    ...(s.activity.calls.length ? s.activity.calls.map((c) => `- ${c}`) : ['- none found']),
     '',
     '## Last reply (excerpt)',
     '',
-    activity.reply ? `> ${activity.reply}` : '> none found',
+    s.activity.reply ? `> ${s.activity.reply}` : '> none found',
     '',
   ].join('\n')
 }
 
 // Exclusive create, so two sessions never take the same number.
-export function recordGripe(h, { dir = gripeDir(), now = new Date() } = {}) {
+export function recordGripe(h, { dir = gripeDir(), now = new Date(), tool = toolOf(h) } = {}) {
   const text = gripeText(h?.prompt)
   if (!text) return null
   mkdirSync(dir, { recursive: true })
   const date = localDate(now)
-  let n = readdirSync(dir).filter((f) => f.startsWith(`${date}-`)).length + 1
-  const body = (id) => gripeFile({ id, at: localIso(now), text, h, branch: h.cwd ? branchOf(h.cwd) : '', activity: lastActivity(h.transcript_path) })
-  for (;; n++) {
+  const s = sessionOf(h, tool)
+  for (let n = readdirSync(dir).filter((f) => f.startsWith(`${date}-`)).length + 1; ; n++) {
     const id = `${date}-${n}`
     const path = join(dir, `${id}.md`)
-    try { writeFileSync(path, body(id), { flag: 'wx' }); return { id, path } } catch (e) { if (e.code !== 'EEXIST') throw e }
+    try { writeFileSync(path, gripeFile({ id, at: localIso(now), text, s }), { flag: 'wx' }); return { id, path } } catch (e) { if (e.code !== 'EEXIST') throw e }
   }
 }
 
-export function captureVerdict(h, opts) {
-  const got = recordGripe(h, opts)
+// Grok Build cannot block a prompt, so the session sees the gripe and the skill records it.
+export function captureVerdict(h, { env = process.env, ...opts } = {}) {
+  const tool = toolOf(h, env)
+  if (tool === 'grok') return null
+  const got = recordGripe(h, { ...opts, tool })
   if (!got) return null
   const shown = got.path.startsWith(homedir()) ? `~${got.path.slice(homedir().length)}` : got.path
-  return {
-    decision: 'block',
-    reason: `Gripe ${got.id} recorded: ${shown}. This session did not see it; tell it too if it should change course now. Run a bare /gripe later to work the queue.`,
-  }
+  const pass = tool === 'codex' ? '$gripe' : '/gripe'
+  const reason = `Gripe ${got.id} recorded: ${shown}. This session did not see it; tell it too if it should change course now. Run a bare ${pass} later to work the queue.`
+  return tool === 'cursor' ? { continue: false, user_message: reason } : { decision: 'block', reason }
 }

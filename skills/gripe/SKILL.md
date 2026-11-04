@@ -1,25 +1,29 @@
 ---
 name: gripe
-description: "Turn gripes about your agent setup into fixes. `/gripe <what went wrong>` records a gripe without the session seeing it (the plugin's hook does that). Bare `/gripe` runs the pass: read the open gripes and your past corrections, find the root cause in your setup, propose the most deterministic fix (hook > script > skill > text rule), and land only what the user approves. Use when the user types `/gripe`, or asks to work their gripes or fix their agent setup from them."
+description: "Turn gripes about your agent setup into fixes. `/gripe <what went wrong>` (`$gripe` in Codex) records a gripe without the session seeing it (the plugin's hook does that). Bare `/gripe` runs the pass: read the open gripes and your past corrections, find the root cause in your setup, propose the most deterministic fix (hook > script > skill > text rule), and land only what the user approves. Use when the user types `/gripe` or `$gripe`, or asks to work their gripes or fix their agent setup from them."
 ---
 
 # gripe
 
+Works the same in Claude Code, Codex, Cursor and Grok Build. `/gripe` below means `$gripe` in Codex.
+
 ## 0. Which half you are in
-- **`/gripe <text>`** is a gripe. This plugin's `UserPromptSubmit` hook records it and blocks the
-  prompt, so a session normally never sees it. **If you are reading this with text after `/gripe`,
-  the hook is not running or it failed:** write the gripe file yourself in the format below (next free
-  number for today), reply with one line naming the file, and go back to your work. Do not run the
-  pass.
+- **`/gripe <text>`** is a gripe. This plugin's prompt-submit hook records it and blocks the prompt,
+  so a session normally never sees it. **If you are reading this with text after `/gripe`, the hook
+  did not catch it:** in Grok Build that is expected, because its prompt hooks cannot block;
+  elsewhere the hook is not running or it failed. Write the gripe file yourself in the format below
+  (next free number for today, `tool:` set to the tool you are running in), reply with one line naming
+  the file, and go back to your work. Do not run the pass.
 - **Bare `/gripe`** runs the pass below.
 
 The gripe folder is `$GRIPE_DIR` when set (a leading `~/` means home), else `~/.local/state/gripe/`.
-A gripe file is `<YYYY-MM-DD>-<n>.md`, dated in this machine's time zone:
+Every tool shares it. A gripe file is `<YYYY-MM-DD>-<n>.md`, dated in this machine's time zone:
 
 ```
 ---
 id: 2026-10-30-1
 status: open            # open | fixed | rejected
+tool: claude-code       # claude-code | codex | cursor | grok
 at: <ISO time with offset>
 session: "<session id>"
 transcript: "<transcript path>"
@@ -40,16 +44,18 @@ that the setup failed; it outranks every inferred signal. Observe -> root cause 
 -> land.
 
 ## 1. Observe
-**Gripes first.** Read every `status: open` file in the gripe folder. When the excerpt is not enough,
-open its transcript near the gripe's time. Group gripes about the same thing: each repeat is evidence
-and moves the group up.
+**Gripes first.** Read every `status: open` file in the gripe folder, whatever its `tool:`. The hook
+fills in the last tool calls and reply only for Claude Code; for other tools, and when the excerpt is
+not enough, open the gripe's transcript near its time if one is named. Group gripes about the same
+thing: each repeat is evidence and moves the group up.
 
 **Then closed gripes.** Read the `fixed` and `rejected` ones. They are the record of past passes: an
 idea the user rejected does not come back unless a new gripe names it.
 
-**Then corrections, in slices.** In Claude Code, auto-memory files live in
-`~/.claude/projects/*/memory/*.md`; those with `metadata.type: feedback` (or an older `feedback_*.md`
-name) are corrections the user gave. Read the ones touched since the last pass, not the whole store.
+**Then corrections, in slices.** Where the user's tool keeps memories, read the corrections among
+them touched since the last pass, not the whole store. For example, Claude Code's auto-memory files
+live in `~/.claude/projects/*/memory/*.md`, and those with `metadata.type: feedback` (or an older
+`feedback_*.md` name) are corrections the user gave.
 If the user's setup logs other signals (blocked actions, review findings, lesson files), ask once
 where they are, and read slices of those too. Do not go hunting for them.
 
@@ -58,7 +64,10 @@ One pass is a batch, not the whole backlog: every open gripe, then corrections f
 
 ## 2. Root cause
 **For a gripe, name the part of the setup that should have prevented it:** a missing or wrong hook,
-script, skill, `CLAUDE.md` / `AGENTS.md` line, or settings permission. Or none: the setup said the
+script, skill, instruction-file line, rule, or settings permission. Read only the setup files that
+exist for the gripe's tool: `CLAUDE.md` and `.claude/` for Claude Code, `AGENTS.md` and `.codex/` for
+Codex, `.cursor/rules/` and `.cursor/` for Cursor, `.grok/` for Grok Build (it also reads Claude Code's
+files). Or none: the setup said the
 right thing and the model slipped. Then ask why the right text did not reach the model or did not win
 (buried, contradicted, loaded too late, never loaded). "The model slipped" is a finding, not a
 dismissal: it usually means a text rule that should become a hook.
@@ -84,14 +93,16 @@ For each surviving item, pick the **most deterministic home that can carry the f
 1. **Hook**: a gate that stops the wrong action, or does the right one, whatever the model thinks.
 2. **Script or CLI command**: does the job right every time it is used.
 3. **Skill**: a procedure loaded when the work touches it.
-4. **Text rule**: a line in `CLAUDE.md`, `AGENTS.md`, or a rules file.
+4. **Text rule**: a line in the tool's instruction file (`CLAUDE.md`, `AGENTS.md`) or a rules file.
 
 For each item, say in one line why each stronger home cannot carry it (a hook cannot see the decision;
 the step needs judgment, so no script can do it). "It was easier to write a line" is not a reason.
 
 Then pick **where it lives**. The test: would this change be true for someone else?
-- **Only for this user**: their own `~/.claude/` (`CLAUDE.md`, `skills/`, `settings.json` hooks).
-- **For everyone in one repo**: that repo's `CLAUDE.md` / `AGENTS.md` or `.claude/`.
+- **Only for this user**: their own config folder for that tool (`~/.claude/`, `~/.codex/`,
+  `~/.cursor/`, `~/.grok/`).
+- **For everyone in one repo**: that repo's instruction file or tool folder (`CLAUDE.md`, `AGENTS.md`,
+  `.claude/`, `.cursor/`, `.grok/`).
 - **For a shared library or plugin**: draft the change; the user opens the PR.
 
 When the home is genuinely unclear, say so and let the user pick. Do not put it in two places.
@@ -106,8 +117,8 @@ Show the ranked list with its diffs. The user approves per item ("yes to 1 and 3
 ..."). Apply only what they approve, exactly as approved. Nothing lands without this yes.
 
 ## 5. Land
-- Apply each approved change. A skill or `CLAUDE.md` change reaches the next session that loads it; a
-  hook or `settings.json` change needs a new session. Say which. Running sessions keep the old rules.
+- Apply each approved change. A skill or instruction-file change reaches the next session that loads
+  it; a hook or settings change needs a new session. Say which. Running sessions keep the old rules.
 - For a shared-library or other-repo item, prepare the branch and the diff, and stop. Push or open a
   PR only on the user's yes.
 - **Close each gripe:** set `status: fixed` and add `fix: <commit or file>`, or `status: rejected` and
