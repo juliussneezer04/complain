@@ -1,0 +1,12 @@
+{
+  "name": "gripe",
+  "description": "Gripe about your agent setup mid-session without derailing it, then fix the root cause later in one pass. `/gripe <text>` is recorded to a local folder and hidden from the session; bare `/gripe` turns open gripes into hooks, scripts, skills or rules you approve.",
+  "version": "0.1.0",
+  "author": {
+    "name": "juliussneezer04",
+    "url": "https://github.com/juliussneezer04"
+  },
+  "homepage": "https://github.com/juliussneezer04/gripe",
+  "repository": "https://github.com/juliussneezer04/gripe",
+  "license": "MIT"
+}

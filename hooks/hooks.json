@@ -1,0 +1,16 @@
+{
+  "description": "Records `/gripe <text>` prompts to a local folder and blocks them, so the running session never sees them.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/capture.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

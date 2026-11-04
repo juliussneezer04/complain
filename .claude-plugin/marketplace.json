@@ -1,0 +1,14 @@
+{
+  "name": "gripe",
+  "owner": {
+    "name": "juliussneezer04",
+    "url": "https://github.com/juliussneezer04"
+  },
+  "description": "Gripe about your Claude Code setup mid-session; fix the root cause later.",
+  "plugins": [
+    {
+      "name": "gripe",
+      "source": "./"
+    }
+  ]
+}
